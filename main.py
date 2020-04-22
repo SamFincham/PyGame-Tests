@@ -1,6 +1,19 @@
 import pygame
  
 # Global constants
+s = {
+	'g': { #General Settings
+		'scrn_d': [800, 800] #Screen dimensions
+	},
+
+	'p': { #Player Settings
+		'size': [16,16] #Player Dimensions
+	},
+
+	'l': { #Level Settings
+		'col': [[0,0,0],[80,80,80],[160,160,160],[255,255,255]]
+	}
+}
  
 # Colors
 BLACK = (0, 0, 0)
@@ -27,10 +40,8 @@ class Player(pygame.sprite.Sprite):
  
         # Create an image of the block, and fill it with a color.
         # This could also be an image loaded from the disk.
-        width = 32
-        height = 32
-        self.image = pygame.Surface([width, height])
-        self.image.fill(RED)
+        self.image = pygame.Surface(s['p']['size'])
+        self.image.fill(s['l']['col'][0])
  
         # Set a referance to the image rect.
         self.rect = self.image.get_rect()
@@ -127,7 +138,7 @@ class Platform(pygame.sprite.Sprite):
         super(Platform, self).__init__()
  
         self.image = pygame.Surface([width, height])
-        self.image.fill(GREEN)
+        self.image.fill(s['l']['col'][0])
  
         self.rect = self.image.get_rect()
  
@@ -157,7 +168,7 @@ class Level(object):
         """ Draw everything on this level. """
  
         # Draw the background
-        screen.fill(BLUE)
+        screen.fill(s['l']['col'][3])
  
         # Draw all the sprite lists that we have
         self.platform_list.draw(screen)
