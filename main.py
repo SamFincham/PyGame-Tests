@@ -1,6 +1,7 @@
 #TEST GAME
 
 import pygame as pg
+pg.font.init() #Initialise font module
 
 """ GAME SETTINGS """
 #Master Settings Variable
@@ -8,8 +9,9 @@ s = {}
 
 #Display Settings
 s['d'] = {}
-s['d']['scr'] = {'dim': [400, 400], 'title': 'Test Game'} #Screen
+s['d']['scr'] = {'dim': [400, 400], 'title': 'Test Game'} #Main Game Screen
 s['d']['fps'] = 60 #Frames Per Second
+s['d']['font'] = pg.font.SysFont('Comic Sans MS', 30)
 
 #Player Settings
 s['p'] = {}
@@ -21,6 +23,9 @@ s['p']['j']  = {'launch': 0, 'boost': 1, 'boost_count': 10} #Jumping Mechanics
 #Game Variables
 s['g'] = {}
 s['g']['clk'] = pg.time.Clock()
+s['g']['frame_no'] = 0
+s['g']['game_time'] = 60
+s['g']['level_current'] = 0
 s['g']['level_complete'] = False
 s['g']['done'] = False
 s['g']['screen'] = pg.display.set_mode(s['d']['scr']['dim'])
@@ -28,19 +33,22 @@ s['g']['screen'] = pg.display.set_mode(s['d']['scr']['dim'])
 #Level Settings
 s['l'] = list()
 s['l'].append({'platforms': [[200,10,100,100],[200,10,100,200],[200,10,100,300]],
+	'shift': {'vert': True, 'hor': True},
 	'colors': [[0,0,0],[80,80,80],[160,160,160],[240,240,240]],
 	'start': [200,384]
 })
 s['l'].append({'platforms': [[200,10,100,100],[200,10,100,200],[200,10,100,300]],
+	'shift': {'vert': True, 'hor': True},
 	'colors': [[0,255,0],[80,80,80],[160,160,160],[240,0,240]],
 	'start': [200,384]
 })
 s['l'].append({'platforms': [[200,10,100,100],[200,10,100,200],[200,10,100,300]],
+	'shift': {'vert': True, 'hor': True},
 	'colors': [[0,0,255],[80,80,80],[160,160,160],[0,240,240]],
 	'start': [200,384]
 })
 
-""" USER INPUT """
+#User Input Keys
 uip = dict() #"tap" means pressed this frame, "hold" means key is down
 uip["any"] = {"tap": False, "hold": False, "key": 0} #For any key input. Tap only.
 uip["up"] = {"tap": False, "hold": False, "key": pg.K_UP} #Jump
@@ -49,6 +57,22 @@ uip["right"] = {"tap": False, "hold": False, "key": pg.K_RIGHT} #Move right
 uip["reset"] = {"tap": False, "hold": False, "key": pg.K_r} #Reset level 
 uip["next"] = {"tap": False, "hold": False, "key": pg.K_n} #Skip level
 uip["q"] = {"tap": False, "hold": False, "key": pg.K_q} #Quit game
+
+""" STATUS BAR """
+class Status():
+
+	def __init__(self, l):
+		self.col = l['colors'][0]
+		self.font = s['d']['font']
+		#Time:
+		self.time = self.font.render('TIME: %i' % s['g']['game_time'], False, self.col)
+
+	def update(self):
+		if s['g']['frame_no'] == 0: #If a new second has passed
+			self.time = self.font.render('TIME: %i' % s['g']['game_time'], False, self.col)
+
+	def draw(self):
+		s['g']['screen'].blit(self.time, (0,0))
 
 """ PLAYER CLASS """
 class Player(pg.sprite.Sprite):
@@ -149,11 +173,10 @@ class Level(object):
 		self.platform_list.draw(s['g']['screen']) #Populate with platforms
 
 """ PLATFORM CLASS """
-class Platform(pg.sprite.Sprite):
-	
+class Platform(pg.sprite.Sprite):	
+	#Basic Platform Setup
 	def __init__(self, p, l):
 		super(Platform, self).__init__()
-		#Basic Platform Setup
 		self.image = pg.Surface([p[0],p[1]]) #Dimensions of Platform
 		self.rect = self.image.get_rect()
 		self.rect.x = p[2]; self.rect.y = p[3] #Position
@@ -168,36 +191,48 @@ def main():
 	pg.display.set_caption(s['d']['scr']['title'])
 
 	#Go through levels
-	for l in s['l']:
-		#If game done, exit loop and end game
-		if s['g']['done']: break		
-	
+	while not s['g']['done']:	
 		#Set up the next level
 		s['g']['level_complete'] = False
-		player = Player(l)
-		level = Level(l)
+		player = Player(s['l'][s['g']['level_current']])
+		level = Level(s['l'][s['g']['level_current']])
 		player.level = level
+
+		status = Status(s['l'][s['g']['level_current']])
 		active_sprite_list = pg.sprite.Group()
 		active_sprite_list.add(player)
 	
 		#Main Game Loop
-		while not s['g']['level_complete']:	
+		while not s['g']['level_complete']:
+			#Frame & Time Counter
+			s['g']['frame_no'] = (s['g']['frame_no'] + 1) % s['d']['fps']
+			if s['g']['frame_no'] == 0: s['g']['game_time'] -= 1
+
 			#Event Checker
 			get_input()
-			if uip['q']['tap']: s['g']['done'] = True; break
 
 			level.update()
 			player.update()
+			status.update()
 
 			#Draw to Screen
-			level.draw()
-			active_sprite_list.draw(s['g']['screen'])
+			level.draw() #First draw level items
+			active_sprite_list.draw(s['g']['screen']) #Then draw players / entities
+			status.draw()
 		
-			#End of Loop
+			#Display Things
 			s['g']['clk'].tick(s['d']['fps'])
 			pg.display.flip()
 
-			if uip['next']['tap']: s['g']['level_complete'] = True
+			#Level Complete Check
+			if uip['next']['tap']: 
+				s['g']['level_complete'] = True
+				s['g']['level_current'] += 1
+
+			#Check if end of game reached
+			if s['g']['level_current'] >= len(s['l']) or uip['q']['tap'] or s['g']['game_time'] == 0:
+				s['g']['done'] = True
+				break
 
 	pg.quit()
 
