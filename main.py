@@ -17,8 +17,9 @@ s['d']['font'] = pg.font.SysFont('Comic Sans MS', 30)
 s['p'] = {}
 s['p']['d']  = {'size': [16,16]} #Display
 s['p']['hm'] = {'accel': 1, 'max': 8} #Horizontal Movement
-s['p']['vm'] = {'gravity': 0.35, 'max': 10} #Vertical Movement
+s['p']['vm'] = {'gravity': 0.35, 'max': 8} #Vertical Movement
 s['p']['j']  = {'launch': 0, 'boost': 1, 'boost_count': 10} #Jumping Mechanics
+s['p']['death'] = {'flash': 3, 'lim': 30} #Flash every X for Y frames when dead
 
 #Game Variables
 s['g'] = {}
@@ -27,24 +28,34 @@ s['g']['frame_no'] = 0
 s['g']['game_time'] = 60
 s['g']['level_current'] = 0
 s['g']['level_complete'] = False
+s['g']['pause'] = False
 s['g']['done'] = False
 s['g']['screen'] = pg.display.set_mode(s['d']['scr']['dim'])
+s['g']['alive'] = True
+s['g']['death_frame'] = 0 #Blink on and off every X frames when dead
+s['g']['draw_player'] = True
 
 #Level Settings
 s['l'] = list()
 s['l'].append({'platforms': [[200,10,100,100],[200,10,100,200],[200,10,100,300]],
+	'hazards': [[100,5,150,150],[100,5,150,250]],
+	'exits': [[20,40,200,60]],
 	'shift': {'vert': True, 'hor': True},
 	'colors': [[0,0,0],[80,80,80],[160,160,160],[240,240,240]],
 	'start': [200,384]
 })
 s['l'].append({'platforms': [[200,10,100,100],[200,10,100,200],[200,10,100,300]],
+	'hazards': list(),
+	'exits': [[20,40,200,60]],
 	'shift': {'vert': True, 'hor': True},
-	'colors': [[0,255,0],[80,80,80],[160,160,160],[240,0,240]],
+	'colors': [[0,0,0],[80,80,80],[160,160,160],[240,240,240]],
 	'start': [200,384]
 })
 s['l'].append({'platforms': [[200,10,100,100],[200,10,100,200],[200,10,100,300]],
+	'hazards': list(),
+	'exits': [[20,40,200,60]],
 	'shift': {'vert': True, 'hor': True},
-	'colors': [[0,0,255],[80,80,80],[160,160,160],[0,240,240]],
+	'colors': [[0,0,0],[80,80,80],[160,160,160],[240,240,240]],
 	'start': [200,384]
 })
 
@@ -56,7 +67,9 @@ uip["left"] = {"tap": False, "hold": False, "key": pg.K_LEFT} #Move left
 uip["right"] = {"tap": False, "hold": False, "key": pg.K_RIGHT} #Move right
 uip["reset"] = {"tap": False, "hold": False, "key": pg.K_r} #Reset level 
 uip["next"] = {"tap": False, "hold": False, "key": pg.K_n} #Skip level
-uip["q"] = {"tap": False, "hold": False, "key": pg.K_q} #Quit game
+uip["pause"] = {"tap": False, "hold": False, "key": pg.K_p} #Pause game
+uip["quit"] = {"tap": False, "hold": False, "key": pg.K_q} #Quit game
+uip["kill"] = {"tap": False, "hold": False, "key": pg.K_k} #Quit game
 
 """ STATUS BAR """
 class Status():
@@ -143,6 +156,14 @@ class Player(pg.sprite.Sprite):
 			self.v[1] = 0
 			self.rect.y = s['d']['scr']['dim'][1] - s['p']['d']['size'][1]
 
+		#Hazard Collision
+		hit_list = pg.sprite.spritecollide(self, self.level.hazard_list, False)
+		if hit_list: s['g']['alive'] = False
+
+		#Exit Collision
+		hit_list = pg.sprite.spritecollide(self, self.level.exit_list, False)
+		if hit_list: s['g']['level_complete'] = True
+
 		#Check If On Ground
 		if self.rect.y == s['d']['scr']['dim'][1] - s['p']['d']['size'][1]: #If on bottom of screen
 			self.j['on_ground'] = True
@@ -162,26 +183,41 @@ class Level(object):
 		#Add Platforms
 		self.platform_list = pg.sprite.Group()
 		for p in l['platforms']: #Create each platform and add to level
-			block = Platform(p, l)
-			self.platform_list.add(block)
+			platform = Block(p, l['colors'][0])
+			self.platform_list.add(platform)
+
+		#Add Hazards
+		self.hazard_list = pg.sprite.Group()
+		for h in l['hazards']: #Create each hazard and add to level
+			hazard = Block(h, l['colors'][3])
+			self.hazard_list.add(hazard)
+
+		#Add Exit(s)
+		self.exit_list = pg.sprite.Group()
+		for e in l['exits']:
+			exit = Block(e, l['colors'][0])
+			self.exit_list.add(exit)
 
 	def update(self):
-		self.platform_list.update()
+		pass
+		#self.platform_list.update()
+		#self.hazard_list.update()
 
 	def draw(self):
 		s['g']['screen'].fill(self.s['colors'][2]) #Add background colour first
 		self.platform_list.draw(s['g']['screen']) #Populate with platforms
+		self.hazard_list.draw(s['g']['screen']) #Populate with platforms
+		self.exit_list.draw(s['g']['screen'])
 
-""" PLATFORM CLASS """
-class Platform(pg.sprite.Sprite):	
+""" BLOCK CLASS """
+class Block(pg.sprite.Sprite):	
 	#Basic Platform Setup
-	def __init__(self, p, l):
-		super(Platform, self).__init__()
+	def __init__(self, p, c):
+		super(Block, self).__init__()
 		self.image = pg.Surface([p[0],p[1]]) #Dimensions of Platform
 		self.rect = self.image.get_rect()
 		self.rect.x = p[2]; self.rect.y = p[3] #Position
-		self.image.fill(l['colors'][0]) #Colour from level colour scheme
-		
+		self.image.fill(c) #Colour from level colour scheme		
 
 """ MAIN LOOP """
 def main():
@@ -198,27 +234,46 @@ def main():
 		level = Level(s['l'][s['g']['level_current']])
 		player.level = level
 
+		#Reset some game variables
+		s['g']['death_frame'] = 0
+		s['g']['draw_player'] = True
+		s['g']['alive'] = True
+
 		status = Status(s['l'][s['g']['level_current']])
 		active_sprite_list = pg.sprite.Group()
 		active_sprite_list.add(player)
 	
 		#Main Game Loop
 		while not s['g']['level_complete']:
-			#Frame & Time Counter
-			s['g']['frame_no'] = (s['g']['frame_no'] + 1) % s['d']['fps']
-			if s['g']['frame_no'] == 0: s['g']['game_time'] -= 1
-
-			#Event Checker
+			#Get and apply user input
 			get_input()
+			if uip['pause']['tap']: s['g']['pause'] = not s['g']['pause']
 
-			level.update()
-			player.update()
-			status.update()
+			if not s['g']['pause']:
+				#Get non-pause inputs
+				if uip['kill']['tap']: s['g']['alive'] = False
+				if uip['reset']['tap']: break
+				if s['g']['death_frame'] > s['p']['death']['lim']: break
 
-			#Draw to Screen
-			level.draw() #First draw level items
-			active_sprite_list.draw(s['g']['screen']) #Then draw players / entities
-			status.draw()
+				#Frame & Time Counter
+				s['g']['frame_no'] = (s['g']['frame_no'] + 1) % s['d']['fps'] #Increase and reset at fps
+				if s['g']['frame_no'] == 0: s['g']['game_time'] -= 1 #Increment time counter per second
+
+				#Update all Sprites, Player, etc.
+				level.update()
+				if s['g']['alive']: player.update()
+				status.update()
+
+				#Check what to draw to screen
+				if s['g']['alive']: s['g']['draw_player'] = True #If alive, draw.
+				else: #If dead, flash every X frames.
+					if s['g']['death_frame'] <= s['p']['death']['lim']: s['g']['death_frame'] += 1 
+					s['g']['draw_player'] = (s['g']['death_frame'] / s['p']['death']['flash']) % 2 == 1
+
+				#Draw to Screen
+				level.draw() #First draw level items
+				if s['g']['draw_player']: active_sprite_list.draw(s['g']['screen']) #Then draw players / entities
+				status.draw()
 		
 			#Display Things
 			s['g']['clk'].tick(s['d']['fps'])
@@ -227,16 +282,18 @@ def main():
 			#Level Complete Check
 			if uip['next']['tap']: 
 				s['g']['level_complete'] = True
-				s['g']['level_current'] += 1
+
+			if s['g']['level_complete']: s['g']['level_current'] += 1
 
 			#Check if end of game reached
-			if s['g']['level_current'] >= len(s['l']) or uip['q']['tap'] or s['g']['game_time'] == 0:
+			if s['g']['done'] or s['g']['level_current'] >= len(s['l']) or uip['quit']['tap'] or s['g']['game_time'] == 0:
 				s['g']['done'] = True
 				break
 
+	#End game here
 	pg.quit()
 
-""" KEY INPUT """
+""" GET KEY INPUT """
 def get_input():
 	#Reset taps
 	for button in uip:
